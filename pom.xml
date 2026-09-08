@@ -10,7 +10,7 @@
 
     <name>Flutter SonarQube Plugin</name>
     <description>Enables analysis of Dart and Flutter projects into SonarQube.</description>
-    <url>https://github.com/insideapp-fr/sonar-flutter/tree/master</url>
+    <url>https://github.com/lenerson/sonar-flutter</url>
 
     <modules>
         <module>sonar-flutter-plugin</module>
@@ -31,7 +31,7 @@
     </licenses>
 
     <issueManagement>
-        <url>https://github.com/insideapp-fr/sonar-flutter/issues</url>
+        <url>https://github.com/lenerson/sonar-flutter/issues</url>
     </issueManagement>
 
     <developers>
@@ -43,9 +43,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git@github.com:insideapp-fr/sonar-flutter.git</connection>
-        <developerConnection>scm:git:git@github.com:insideapp-fr/sonar-flutter.git</developerConnection>
-        <url>https://github.com/insideapp-fr/sonar-flutter</url>
+        <connection>scm:git:git@github.com:lenerson/sonar-flutter.git</connection>
+        <developerConnection>scm:git:git@github.com:lenerson/sonar-flutter.git</developerConnection>
+        <url>https://github.com/lenerson/sonar-flutter</url>
       <tag>HEAD</tag>
     </scm>
 
@@ -55,21 +55,32 @@
         <license.mailto>contact@insideapp.fr</license.mailto>
 
         <maven.test.redirectTestOutputToFile>true</maven.test.redirectTestOutputToFile>
-        <jdk.min.version>1.9</jdk.min.version>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <sonar.version>7.9</sonar.version>
+        <!--
+          SonarQube Community Build 26.8 ships sonar-plugin-api 13.8.0.4399.
+          Note the groupId: org.sonarsource.sonarqube:sonar-plugin-api was
+          superseded by org.sonarsource.api.plugin:sonar-plugin-api in 9.5.
+        -->
+        <sonar.plugin.api.version>13.8.0.4399</sonar.plugin.api.version>
+        <!--
+          Test scope only. SensorContextTester, TestInputFileBuilder and
+          DefaultIssueLocation were dropped from sonar-plugin-api-impl in
+          26.7.0 with no published replacement, so this stays pinned to the
+          last release that carries them. It never reaches the plugin jar.
+        -->
+        <sonar.plugin.api.impl.version>26.6.0.123539</sonar.plugin.api.impl.version>
 
         <assertj.version>3.5.2</assertj.version>
         <junit.version>4.13.1</junit.version>
         <mockito.version>4.4.0</mockito.version>
-        <sslr.version>1.23</sslr.version>
-        <sslr-squid-bridge.version>2.7.1.392</sslr-squid-bridge.version>
         <ant.version>1.6</ant.version>
-        <assertj.version>3.5.2</assertj.version>
         <jproc.version>2.2.3</jproc.version>
         <apache-commons.version>2.12.0</apache-commons.version>
-        <apache-commons-lang3.version>3.12.0</apache-commons-lang3.version>
+        <!-- 3.20.0 required by sonar-plugin-api-impl (test scope): SensorContextTester
+             needs org.apache.commons.lang3.Strings, added in 3.18.0 -->
+        <apache-commons-lang3.version>3.20.0</apache-commons-lang3.version>
 
         <sonar.sources>src/main/java,src/main/js</sonar.sources>
         <sonar.exclusions>file:**/src/main/java/**/generated/**/*.java</sonar.exclusions>
@@ -81,9 +92,23 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.sonarsource.sonarqube</groupId>
+            <groupId>org.sonarsource.api.plugin</groupId>
             <artifactId>sonar-plugin-api</artifactId>
-            <version>${sonar.version}</version>
+            <version>${sonar.plugin.api.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+          JSR-305 (@Nonnull, @ParametersAreNonnullByDefault) used to arrive
+          transitively with sonar-plugin-api 7.9. The current API no longer
+          brings it, so it is declared explicitly. Provided scope: these are
+          documentation annotations, and the JVM silently ignores annotation
+          types that are absent at runtime, so it need not ship in the jar.
+        -->
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+            <version>3.0.2</version>
             <scope>provided</scope>
         </dependency>
 
@@ -108,60 +133,23 @@
             <artifactId>jproc</artifactId>
             <version>${jproc.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.sonarsource.sslr</groupId>
-            <artifactId>sslr-core</artifactId>
-            <version>${sslr.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.sonarsource.sslr-squid-bridge</groupId>
-            <artifactId>sslr-squid-bridge</artifactId>
-            <version>${sslr-squid-bridge.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.codehaus.sonar.sslr</groupId>
-                    <artifactId>sslr-core</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.codehaus.sonar.sslr</groupId>
-                    <artifactId>sslr-xpath</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.codehaus.sonar</groupId>
-                    <artifactId>sonar-plugin-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.picocontainer</groupId>
-                    <artifactId>picocontainer</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>jcl-over-slf4j</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
 
         <!-- Test dependencies -->
+        <!--
+          Provides the scanner-side internals the tests drive directly:
+          SensorContextTester, TestInputFileBuilder, DefaultInputFile,
+          DefaultSensorDescriptor and SonarRuntimeImpl. Test scope only.
+        -->
         <dependency>
             <groupId>org.sonarsource.sonarqube</groupId>
-            <artifactId>sonar-testing-harness</artifactId>
-            <version>${sonar.version}</version>
+            <artifactId>sonar-plugin-api-impl</artifactId>
+            <version>${sonar.plugin.api.impl.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.sonarsource.sslr</groupId>
-            <artifactId>sslr-testing-harness</artifactId>
-            <version>${sslr.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -185,10 +173,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.13.0</version>
                 <configuration>
-                    <source>${jdk.min.version}</source>
-                    <target>${jdk.min.version}</target>
+                    <release>${maven.compiler.release}</release>
                     <compilerArgs>
                         <arg>-Xlint</arg>
                     </compilerArgs>
@@ -198,7 +185,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.5</version>
+                <version>0.8.13</version>
                 <configuration>
                     <excludes>
                         <exclude>**/generated/**</exclude>

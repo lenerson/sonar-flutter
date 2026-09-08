@@ -17,7 +17,6 @@
  */
 package fr.insideapp.sonarqube.dart.lang.antlr;
 
-import com.google.common.io.Files;
 import fr.insideapp.sonarqube.dart.lang.Dart;
 import org.antlr.v4.runtime.Token;
 import org.apache.commons.io.IOUtils;
