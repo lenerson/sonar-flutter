@@ -29,11 +29,21 @@
             <plugin>
                 <groupId>org.sonarsource.sonar-packaging-maven-plugin</groupId>
                 <artifactId>sonar-packaging-maven-plugin</artifactId>
-                <version>1.18.0.372</version>
+                <version>1.25.1.3002</version>
                 <extensions>true</extensions>
                 <configuration>
                     <pluginClass>fr.insideapp.sonarqube.flutter.FlutterPlugin</pluginClass>
                     <pluginName>Flutter</pluginName>
+                    <!--
+                      Minimum sonar-plugin-api the plugin will load against.
+                      13.8.0.4399 is what SonarQube Community Build 26.8 ships.
+                    -->
+                    <pluginApiMinVersion>${sonar.plugin.api.version}</pluginApiMinVersion>
+                    <!--
+                      Lets SonarQube skip loading this plugin entirely when the
+                      analysed project has no Dart sources.
+                    -->
+                    <requiredForLanguages>dart</requiredForLanguages>
                 </configuration>
             </plugin>
 

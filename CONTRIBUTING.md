@@ -4,7 +4,19 @@ This documentation is a guide for plugin developers / contributors.
 
 ## Requirements
 
-- Java JDK 11+
+Either use the dockerized toolchain (nothing to install on the host):
+
+```bash
+docker compose run --rm build              # full build + tests
+docker compose run --rm build mvn test     # tests only
+docker compose run --rm build mvn license:check
+docker compose run --rm build bash         # interactive shell
+```
+
+Or install locally:
+
+- Java JDK 21 (SonarQube Community Build 26.8+ requires Java 21; the plugin
+  itself is compiled to Java 17 bytecode)
 - Maven 3.8 or later
 - A local SonarQube instance for local testing
 

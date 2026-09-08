@@ -18,16 +18,23 @@
 package fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.executable;
 
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.AnalyzerOutput;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.batch.sensor.internal.SensorContextTester;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 
 import static org.assertj.core.api.Java6Assertions.assertThat;
 
 
 public class AnalyzerExecutableTest {
+
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     private static final String BASE_DIR = "executable";
 
@@ -68,6 +75,48 @@ public class AnalyzerExecutableTest {
         assertThat(output.getMode().name()).isEqualTo(AnalyzerExecutable.Mode.defaultMode.name());
         assertThat(output.getContent()).isEqualTo("hello\n");
         assertThat(new File(baseDir, ANALYSIS_OPTIONS)).exists();
+    }
+
+    /**
+     * The plugin swaps analysis_options.yaml for its own bundled copy while the
+     * analyzer runs, then puts the project's file back. The restore used
+     * File.renameTo, which does not overwrite an existing destination on Windows:
+     * it returned false, the code fell through to deleting the file outright, and
+     * the project was left with no analysis_options.yaml and an orphan .sonar
+     * backup.
+     */
+    @Test
+    public void analyzeShouldRestoreOriginalAnalysisOptionsFile() throws Exception {
+
+        File baseDir = temporaryFolder.newFolder("project");
+        File analysisOptions = new File(baseDir, ANALYSIS_OPTIONS);
+        String originalContent = "include: package:flutter_lints/flutter.yaml\n";
+        Files.write(analysisOptions.toPath(), originalContent.getBytes(StandardCharsets.UTF_8));
+
+        SensorContext context = SensorContextTester.create(baseDir);
+        AnalyzerOutput output = new DummyAnalyzerExecutable(context).analyze();
+
+        assertThat(output.isAnalysisOptionsOverridden()).isTrue();
+        assertThat(analysisOptions).exists();
+        assertThat(new String(Files.readAllBytes(analysisOptions.toPath()), StandardCharsets.UTF_8))
+                .isEqualTo(originalContent);
+        assertThat(new File(baseDir, ANALYSIS_OPTIONS + ".sonar")).doesNotExist();
+    }
+
+    /**
+     * With no file to preserve, the bundled copy must be cleaned up rather than
+     * left behind in the project.
+     */
+    @Test
+    public void analyzeShouldRemoveBundledOptionsWhenProjectHadNone() throws Exception {
+
+        File baseDir = temporaryFolder.newFolder("project-without-options");
+
+        SensorContext context = SensorContextTester.create(baseDir);
+        new DummyAnalyzerExecutable(context).analyze();
+
+        assertThat(new File(baseDir, ANALYSIS_OPTIONS)).doesNotExist();
+        assertThat(new File(baseDir, ANALYSIS_OPTIONS + ".sonar")).doesNotExist();
     }
 
 }

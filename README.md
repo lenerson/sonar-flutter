@@ -1,13 +1,13 @@
-![CI](https://github.com/insideapp-fr/sonar-flutter/workflows/CI/badge.svg)
-
-[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=insideapp-oss_sonar-flutter&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=insideapp-oss_sonar-flutter)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=insideapp-oss_sonar-flutter&metric=coverage)](https://sonarcloud.io/summary/new_code?id=insideapp-oss_sonar-flutter)
-[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=insideapp-oss_sonar-flutter&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=insideapp-oss_sonar-flutter)
-[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=insideapp-oss_sonar-flutter&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=insideapp-oss_sonar-flutter)
-[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=insideapp-oss_sonar-flutter&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=insideapp-oss_sonar-flutter)
-
+![CI](https://github.com/lenerson/sonar-flutter/workflows/CI/badge.svg)
 
 # SonarQube plugin for Flutter / Dart
+
+> **This is an independent, modified copy** of
+> [insideapp-fr/sonar-flutter](https://github.com/insideapp-fr/sonar-flutter)
+> (Copyright © 2020 inside|app, LGPL-3.0-or-later), maintained separately since
+> 2026-09-08 and updated for **SonarQube Community Build 26.x**. It is not
+> affiliated with or endorsed by inside|app or SonarSource. See
+> [NOTICE.md](NOTICE.md) for attribution and third-party licenses.
 
 A plugin to enable analysis of Dart and Flutter projects into SonarQube.
 
@@ -26,7 +26,9 @@ A plugin to enable analysis of Dart and Flutter projects into SonarQube.
 | Complexity | YES                                                             |
 | Syntax     | YES                                                             |
 
-The plugin is compatible with sonarQube 7.9+.
+The plugin is compatible with **SonarQube Community Build 26.x** (built against
+`sonar-plugin-api` 13.8.0.4399, which is what Community Build 26.8 ships).
+Community Build 26.8 itself requires Java 21 on the server.
 
 ## Download
 

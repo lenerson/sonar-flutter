@@ -17,7 +17,6 @@
  */
 package fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.executable;
 
-import com.google.common.io.Resources;
 import com.vdurmont.semver4j.Semver;
 import fr.insideapp.sonarqube.dart.lang.PubSpec;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.AnalyzerOutput;
@@ -32,9 +31,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,7 +53,7 @@ public abstract class AnalyzerExecutable {
     protected static final Logger LOGGER = Loggers.get(AnalyzerExecutable.class);
 
     private static final int ANALYZER_TIMEOUT = 10 * 60 * 1000;
-    private static final String ANALYSIS_OPTIONS_FILENAME = "analysis_options.yaml";
+    public static final String ANALYSIS_OPTIONS_FILENAME = "analysis_options.yaml";
     private static final String ANALYSIS_OPTIONS_FILE = "/dartanalyzer/analysis_options.yaml";
 
     protected final SensorContext sensorContext;
@@ -88,9 +88,19 @@ public abstract class AnalyzerExecutable {
                     .run();
 
             LOGGER.info("Command '{}' finished (exit {})", result.getProcString(), result.getExitValue());
+            // Parsing depends entirely on this text; log its shape so a silent
+            // "Recording 0 issues" can be told apart from an empty capture.
+            final String output = result.getOutputString();
+            LOGGER.info("Analyzer produced {} chars of output ({} line(s)); stderr {} chars",
+                    output.length(), output.isEmpty() ? 0 : output.split("\\R", -1).length,
+                    result.getErrorString() == null ? 0 : result.getErrorString().length());
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("First 500 chars of analyzer output: {}",
+                        output.substring(0, Math.min(500, output.length())));
+            }
             maybeThrowException(result);
 
-            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString());
+            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString(), optionsCreated);
         } finally {
             if (optionsCreated) {
                 restoreAnalysisOptionsFile(sensorContext);
@@ -126,28 +136,40 @@ public abstract class AnalyzerExecutable {
         return sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME).exists();
     }
 
-    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) {
+    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         String backup = ANALYSIS_OPTIONS_FILENAME + ".sonar";
-        if (analysisOptionsFile.renameTo(sensorContext.fileSystem().resolvePath(backup))) {
-            LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
-        }
+        // Files.move rather than File.renameTo: on Windows renameTo fails when the
+        // destination already exists, which silently skipped the backup and left the
+        // user's file to be overwritten by the bundled one.
+        Files.move(analysisOptionsFile.toPath(),
+                sensorContext.fileSystem().resolvePath(backup).toPath(),
+                StandardCopyOption.REPLACE_EXISTING);
+        LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
     }
 
     private void createAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
-        URL inputUrl = DartAnalyzerSensor.class.getResource(ANALYSIS_OPTIONS_FILE);
-        assert inputUrl != null;
-        Resources.asByteSource(inputUrl).copyTo(com.google.common.io.Files.asByteSink(analysisOptionsFile));
+        try (InputStream bundledOptions = DartAnalyzerSensor.class.getResourceAsStream(ANALYSIS_OPTIONS_FILE)) {
+            if (bundledOptions == null) {
+                throw new IOException(String.format("Bundled %s not found in resources", ANALYSIS_OPTIONS_FILE));
+            }
+            Files.copy(bundledOptions, analysisOptionsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private void restoreAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         File backupAnalysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME + ".sonar");
-        if (backupAnalysisOptionsFile.exists() && backupAnalysisOptionsFile.renameTo(analysisOptionsFile)) {
+        // File.renameTo does not overwrite an existing destination on Windows, so the
+        // restore used to fail there and fall through to deleting the file outright,
+        // destroying the user's analysis_options.yaml and orphaning the .sonar backup.
+        if (backupAnalysisOptionsFile.exists()) {
+            Files.move(backupAnalysisOptionsFile.toPath(), analysisOptionsFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
             LOGGER.info("Restored original {} file", ANALYSIS_OPTIONS_FILENAME);
         } else {
-            Files.delete(analysisOptionsFile.toPath());
+            Files.deleteIfExists(analysisOptionsFile.toPath());
             LOGGER.debug("Cleaned up temporary {} file", ANALYSIS_OPTIONS_FILENAME);
         }
     }

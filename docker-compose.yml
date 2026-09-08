@@ -1,0 +1,23 @@
+# Dockerized build toolchain.
+#
+# SonarQube Community Build 26.8+ runs on Java 21, so the plugin is built and
+# tested against the same runtime. Nothing needs to be installed on the host.
+#
+#   docker compose run --rm build              # full build + tests
+#   docker compose run --rm build mvn test     # tests only
+#   docker compose run --rm build mvn license:check
+#   docker compose run --rm build bash         # interactive shell
+#
+# Dependencies are cached in the named volume `m2` between runs.
+
+services:
+  build:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - m2:/root/.m2
+    command: mvn -B package
+
+volumes:
+  m2:
