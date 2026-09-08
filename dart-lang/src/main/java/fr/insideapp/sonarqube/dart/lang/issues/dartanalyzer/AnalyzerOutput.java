@@ -35,10 +35,27 @@ public class AnalyzerOutput {
 
     private final String content;
 
+    /**
+     * Whether the analyzer ran against the plugin's bundled analysis_options.yaml
+     * instead of the one SonarQube indexed. When it did, issues reported for that
+     * file refer to different content and must not be recorded.
+     */
+    private final boolean analysisOptionsOverridden;
+
     public AnalyzerOutput(Mode mode, AnalyzerExecutable.Mode analyzerMode, String content) {
+        this(mode, analyzerMode, content, false);
+    }
+
+    public AnalyzerOutput(Mode mode, AnalyzerExecutable.Mode analyzerMode, String content,
+                          boolean analysisOptionsOverridden) {
         this.mode = mode;
         this.analyzerMode = analyzerMode;
         this.content = content;
+        this.analysisOptionsOverridden = analysisOptionsOverridden;
+    }
+
+    public boolean isAnalysisOptionsOverridden() {
+        return analysisOptionsOverridden;
     }
 
     public Mode getMode() {

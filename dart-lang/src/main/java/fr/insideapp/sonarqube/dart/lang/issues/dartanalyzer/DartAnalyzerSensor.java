@@ -78,7 +78,7 @@ public class DartAnalyzerSensor implements Sensor {
 
             LOGGER.info("Recording {} issues", issues.size());
 
-            recordIssues(sensorContext, issues);
+            recordIssues(sensorContext, issues, output.isAnalysisOptionsOverridden());
         } catch (IOException e) {
             LOGGER.error("Analysis failed", e);
         }
@@ -86,16 +86,37 @@ public class DartAnalyzerSensor implements Sensor {
 
     }
 
-    private void recordIssues(SensorContext sensorContext, List<DartAnalyzerReportIssue> issues) {
+    private void recordIssues(SensorContext sensorContext, List<DartAnalyzerReportIssue> issues,
+                              boolean analysisOptionsOverridden) {
         issues.forEach(issue -> {
             File file = sensorContext.fileSystem().resolvePath(issue.getFilePath());
             LOGGER.debug("Recording issue for {}", file.getAbsolutePath());
+
+            // When the plugin substituted analysis_options.yaml, the analyzer saw its
+            // bundled copy while SonarQube indexed the project's own file. Line numbers
+            // refer to different content, so these issues are meaningless here.
+            if (analysisOptionsOverridden
+                    && AnalyzerExecutable.ANALYSIS_OPTIONS_FILENAME.equals(file.getName())) {
+                LOGGER.debug("Skipping issue on the overridden {}", file.getName());
+                return;
+            }
 
             FilePredicate fp = sensorContext.fileSystem().predicates().hasAbsolutePath(file.getAbsolutePath());
             if (!sensorContext.fileSystem().hasFiles(fp)) {
                 LOGGER.warn("File not included in SonarQube {}", file.getAbsoluteFile());
             } else {
                 final InputFile inputFile = Objects.requireNonNull(sensorContext.fileSystem().inputFile(fp));
+
+                // A single out-of-range line used to abort the whole analysis. Files can
+                // legitimately differ from what was indexed (generated or rewritten during
+                // the run), so skip the issue instead of failing everything.
+                final Integer line = issue.getLineNumber();
+                if (line == null || line < 1 || line > inputFile.lines()) {
+                    LOGGER.warn("Skipping issue {} on {}: line {} is outside the indexed file ({} lines)",
+                            issue.getRuleId(), inputFile, line, inputFile.lines());
+                    return;
+                }
+
                 final NewIssue newIssue = sensorContext.newIssue()
                         .forRule(RuleKey.of(DartAnalyzerRulesDefinition.REPOSITORY_KEY, issue.getRuleId().toLowerCase(Locale.ROOT)));
                 newIssue.at(issue.toNewIssueLocationFor(newIssue, inputFile)).save();

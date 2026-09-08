@@ -53,7 +53,7 @@ public abstract class AnalyzerExecutable {
     protected static final Logger LOGGER = Loggers.get(AnalyzerExecutable.class);
 
     private static final int ANALYZER_TIMEOUT = 10 * 60 * 1000;
-    private static final String ANALYSIS_OPTIONS_FILENAME = "analysis_options.yaml";
+    public static final String ANALYSIS_OPTIONS_FILENAME = "analysis_options.yaml";
     private static final String ANALYSIS_OPTIONS_FILE = "/dartanalyzer/analysis_options.yaml";
 
     protected final SensorContext sensorContext;
@@ -90,7 +90,7 @@ public abstract class AnalyzerExecutable {
             LOGGER.info("Command '{}' finished (exit {})", result.getProcString(), result.getExitValue());
             maybeThrowException(result);
 
-            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString());
+            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString(), optionsCreated);
         } finally {
             if (optionsCreated) {
                 restoreAnalysisOptionsFile(sensorContext);
@@ -126,12 +126,16 @@ public abstract class AnalyzerExecutable {
         return sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME).exists();
     }
 
-    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) {
+    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         String backup = ANALYSIS_OPTIONS_FILENAME + ".sonar";
-        if (analysisOptionsFile.renameTo(sensorContext.fileSystem().resolvePath(backup))) {
-            LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
-        }
+        // Files.move rather than File.renameTo: on Windows renameTo fails when the
+        // destination already exists, which silently skipped the backup and left the
+        // user's file to be overwritten by the bundled one.
+        Files.move(analysisOptionsFile.toPath(),
+                sensorContext.fileSystem().resolvePath(backup).toPath(),
+                StandardCopyOption.REPLACE_EXISTING);
+        LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
     }
 
     private void createAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
@@ -147,10 +151,15 @@ public abstract class AnalyzerExecutable {
     private void restoreAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         File backupAnalysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME + ".sonar");
-        if (backupAnalysisOptionsFile.exists() && backupAnalysisOptionsFile.renameTo(analysisOptionsFile)) {
+        // File.renameTo does not overwrite an existing destination on Windows, so the
+        // restore used to fail there and fall through to deleting the file outright,
+        // destroying the user's analysis_options.yaml and orphaning the .sonar backup.
+        if (backupAnalysisOptionsFile.exists()) {
+            Files.move(backupAnalysisOptionsFile.toPath(), analysisOptionsFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
             LOGGER.info("Restored original {} file", ANALYSIS_OPTIONS_FILENAME);
         } else {
-            Files.delete(analysisOptionsFile.toPath());
+            Files.deleteIfExists(analysisOptionsFile.toPath());
             LOGGER.debug("Cleaned up temporary {} file", ANALYSIS_OPTIONS_FILENAME);
         }
     }
