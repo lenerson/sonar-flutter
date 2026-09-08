@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.6.0
+
+First release of this independent copy of
+[insideapp-fr/sonar-flutter](https://github.com/insideapp-fr/sonar-flutter).
+See [NOTICE.md](NOTICE.md) for attribution.
+
+#### Breaking
+
+- Targets `sonar-plugin-api` 13.8.0.4399 and **no longer runs on SonarQube older
+  than Community Build 26.x**. Community Build 26.8 itself requires Java 21 on
+  the server.
+- Compiled to Java 17 bytecode (was Java 9). Building requires JDK 17 or later;
+  a dockerized JDK 21 toolchain is provided via `docker compose run --rm build`.
+- `DartAnalyzerReportIssue.toNewIssueLocationFor` now takes the owning `NewIssue`
+  as its first argument, since issue locations are built through the sensor API
+  instead of the internal `DefaultIssueLocation`.
+
+#### Experimental
+
+- None.
+
+#### Enhancements
+
+- Plugin manifest declares `pluginApiMinVersion` and
+  `Plugin-RequiredForLanguages: dart`, so SonarQube can skip loading the plugin
+  for projects with no Dart sources.
+- Dropped unused dependencies that still pulled the 7.9 API transitively:
+  `sslr-core`, `sslr-squid-bridge`, `sslr-testing-harness`,
+  `sonar-testing-harness` and `staxmate`. Guava is no longer bundled.
+- The analyzer now logs the size of the captured output before parsing, so a
+  silent "Recording 0 issues" can be told apart from an empty capture.
+
+#### Bug Fixes
+
+- The project's `analysis_options.yaml` was destroyed on Windows. The plugin
+  swaps it for its bundled copy while the analyzer runs and restored it with
+  `File.renameTo`, which does not overwrite an existing destination on Windows;
+  the restore failed and the code fell through to deleting the file, leaving the
+  only copy in an orphan `.sonar` backup. Both directions now use `Files.move`
+  with `REPLACE_EXISTING`.
+- A single out-of-range issue aborted the entire analysis. The analyzer reports
+  issues against the substituted `analysis_options.yaml` while SonarQube indexed
+  the project's own file, and `selectLine()` past the end of the indexed file
+  threw, discarding every issue in the run. Issues for the substituted file are
+  now skipped, and any issue whose line falls outside the indexed file is logged
+  and dropped instead of failing the analysis.
+
 ## 0.5.2
 
 #### Breaking
