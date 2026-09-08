@@ -88,6 +88,16 @@ public abstract class AnalyzerExecutable {
                     .run();
 
             LOGGER.info("Command '{}' finished (exit {})", result.getProcString(), result.getExitValue());
+            // Parsing depends entirely on this text; log its shape so a silent
+            // "Recording 0 issues" can be told apart from an empty capture.
+            final String output = result.getOutputString();
+            LOGGER.info("Analyzer produced {} chars of output ({} line(s)); stderr {} chars",
+                    output.length(), output.isEmpty() ? 0 : output.split("\\R", -1).length,
+                    result.getErrorString() == null ? 0 : result.getErrorString().length());
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("First 500 chars of analyzer output: {}",
+                        output.substring(0, Math.min(500, output.length())));
+            }
             maybeThrowException(result);
 
             return new AnalyzerOutput(outputMode, getMode(), result.getOutputString(), optionsCreated);
