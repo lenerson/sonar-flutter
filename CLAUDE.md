@@ -98,11 +98,25 @@ The script (with helpers in `scripts/commons/`) fetches rules and descriptions, 
 
 ## Branching and releases
 
-`master` is the working branch and is protected: changes land through a pull request (1 approving review required), so direct pushes are rejected. `develop` still exists but is stale — it sits at the upstream state and has none of the 26.x work; the `-SNAPSHOT` automation in `.github/workflows/maven.yml` points at it.
+Two long-lived branches:
 
-**GitHub Actions is currently disabled on this repository**, so no workflow has run since the fork: neither `maven.yml` nor `release.yml` (both updated to Java 21) has been exercised, and pushing a `0.*` tag will not build anything. Releases have been cut by hand — build in the container, `gh release create <tag>` with the jar attached.
+- **`develop`** — the base for all new work, and the source of **homologation builds**. Every push updates the GitHub release matching the current `-SNAPSHOT` version, via the `Upload snapshot release` step in `.github/workflows/maven.yml`. Open feature branches from here and merge back here.
+- **`main`** — **production releases only**, and the default branch. Protected: changes land through a pull request with 1 approving review, so direct pushes are rejected. Deletion and force-push are blocked.
 
-The version is duplicated across all three `pom.xml` files; `mvn versions:set -DnewVersion=X.Y.Z` keeps them in sync (pass `-DgenerateBackupPoms=false`). `master` currently sits on the released `0.6.0` rather than a snapshot, so builds off `master` produce a jar whose manifest claims to be the release — bump to `-SNAPSHOT` if that matters to you.
+Cutting a production release (the flow `CONTRIBUTING.md` describes):
+
+1. Merge `develop` into `main` **without squashing**, to keep the commit history.
+2. Tag from `main` with the release number (`git tag -a 0.7.0`) and push the tag.
+3. `.github/workflows/release.yml` fires on `0.*` tags: it runs `mvn versions:set -DnewVersion=$GIT_TAG_NAME`, builds, and attaches the jar to the GitHub release. The branch's own version does not matter at tag time because of that `versions:set`.
+4. Bump `develop` to the next snapshot: `mvn versions:set -DnewVersion=X.Y.Z-SNAPSHOT -DgenerateBackupPoms=false`.
+
+Keep `develop` on a `-SNAPSHOT` version. The snapshot-release step tags with `${project.version}` and uses `overwrite: true`, so a non-snapshot version on `develop` that matches a published release would overwrite that release's assets.
+
+The version is duplicated across all three `pom.xml` files (four declarations, counting the `dart-lang` dependency in `sonar-flutter-plugin`); `versions:set` keeps them in sync.
+
+Dependabot is configured with `target-branch: develop` in `.github/dependabot.yml`, which matches this model — dependency bumps land in development, not straight into a release branch.
+
+Note that `main` was renamed from `master`, and that GitHub Actions was disabled for a period after the fork. The first verified CI run was a push to a throwaway branch off `main`: License Header Check and Build green, with the SonarCloud `Analyze` step skipped because no `SONAR_TOKEN` secret is set — that skip is deliberate (`if: env.SONAR_TOKEN != ''`) so the build stays green without one.
 
 ## Verifying against a real server
 
