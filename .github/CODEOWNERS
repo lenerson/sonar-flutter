@@ -1,0 +1,11 @@
+# Every change requires a review from the repository owner.
+#
+# Combined with `require_code_owner_review` on the branch rulesets, this makes
+# the owner's approval mandatory: without it, an approval from any collaborator
+# would satisfy the review requirement, so two contributors could approve each
+# other and merge without the owner ever seeing the change.
+#
+# GitHub reads CODEOWNERS from the base branch of a pull request, so this file
+# has to exist on both `develop` and `main` to cover both directions.
+
+*       @lenerson
