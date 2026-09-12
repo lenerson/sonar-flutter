@@ -10,6 +10,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Needed to attach the jar to the GitHub release; the repository default
+    # for GITHUB_TOKEN is read-only.
+    permissions:
+      contents: write
+
     env:
       # Optional. When unset, the SonarCloud analysis step is skipped.
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
