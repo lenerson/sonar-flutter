@@ -6,6 +6,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # The default GITHUB_TOKEN is read-only on this repository, which made
+    # "Upload snapshot release" fail with "Not Found" when it tried to create
+    # the release. Granting contents: write on the job keeps the scope narrow
+    # instead of flipping the repository-wide default to write.
+    permissions:
+      contents: write
+
     env:
       # Optional. When unset, the SonarCloud analysis step is skipped so the
       # build still succeeds on forks and clones without the secret.
